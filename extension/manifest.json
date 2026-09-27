@@ -1,15 +1,13 @@
 {
   "manifest_version": 3,
   "name": "CyberTwin — Preview Before You Proceed",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Browser-based security tool that intercepts link clicks, analyzes them safely, and shows a plain-English risk report before you proceed.",
-
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-
   "action": {
     "default_title": "CyberTwin Link Inspector",
     "default_popup": "popup/popup.html",
@@ -19,22 +17,19 @@
       "128": "icons/icon128.png"
     }
   },
-
   "background": {
     "service_worker": "background.js"
   },
-
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "downloads"
   ],
-
   "host_permissions": [
     "http://localhost:3001/*",
     "https://cybertwin-backend.onrender.com/*",
     "<all_urls>"
   ],
-
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

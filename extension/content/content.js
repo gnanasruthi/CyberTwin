@@ -33,6 +33,115 @@
     console.warn('[CyberTwin] Storage sync error:', e);
   }
 
+  // Listen for risky-download warnings from background.js
+  chrome.runtime.onMessage.addListener((request) => {
+    if (request.type === 'DOWNLOAD_RISK') {
+      openDownloadRiskModal(request.data);
+    }
+  });
+
+  function openDownloadRiskModal(data) {
+    closeOverlay();
+
+    const host = document.createElement('div');
+    host.id = 'cybertwin-root-host';
+    host.style.position = 'fixed';
+    host.style.inset = '0';
+    host.style.zIndex = '2147483647';
+    host.style.pointerEvents = 'auto';
+
+    const shadow = host.attachShadow({ mode: 'open' });
+
+    const style = document.createElement('style');
+    style.textContent = getOverlayStyles();
+    shadow.appendChild(style);
+
+    const container = document.createElement('div');
+    container.className = 'ct-backdrop';
+
+    const reasonsHtml = (data.reasons && data.reasons.length)
+      ? data.reasons.map(r => escapeHtml(r)).join('<br>')
+      : 'Suspicious file characteristics detected.';
+
+    container.innerHTML = `
+      <div class="ct-modal ct-animate-in">
+        <div class="ct-header">
+          <div class="ct-brand">
+            <span class="ct-logo-icon">🛡️</span>
+            <div>
+              <div class="ct-title">CyberTwin Download Alert</div>
+              <div class="ct-subtitle">High-Risk File Detected</div>
+            </div>
+          </div>
+          <button class="ct-close-btn" id="ct-dl-close" title="Close overlay">&times;</button>
+        </div>
+
+        <div class="ct-body">
+          <div class="ct-target-box">
+            <span class="ct-target-label">FILE</span>
+            <div class="ct-target-url" title="${escapeHtml(data.filename || '')}">${escapeHtml(data.filename || 'Unknown file')}</div>
+          </div>
+
+          <div class="ct-score-card ct-risk-high">
+            <div class="ct-score-ring">
+              <span class="ct-score-num">${data.score}</span>
+              <span class="ct-score-max">/100</span>
+            </div>
+            <div class="ct-score-meta">
+              <div class="ct-score-verdict">
+                <span class="ct-badge ct-risk-high">${escapeHtml(data.risk || 'HIGH')}</span>
+              </div>
+              <div class="ct-score-reason"><strong>File type:</strong> ${escapeHtml(data.mime || 'unknown')}</div>
+            </div>
+          </div>
+
+          <div class="ct-explanation-card">
+            <div class="ct-explanation-title">Why this was flagged:</div>
+            <p class="ct-explanation-text">${reasonsHtml}</p>
+          </div>
+
+          <div class="ct-notice">
+            ${data.fileAlreadyLanded
+              ? '⚠️ <strong>Note:</strong> This file downloaded too quickly for CyberTwin to pause it in time. Choosing Cancel below will delete it from your computer immediately.'
+              : '⚠️ <strong>High Risk Warning:</strong> This file type is commonly used to deliver malware. Only proceed if you trust the source.'}
+          </div>
+        </div>
+
+        <div class="ct-footer">
+          <button class="ct-btn ct-btn-cancel" id="ct-dl-cancel">
+            <span class="ct-btn-icon">✖</span> ${data.fileAlreadyLanded ? 'Delete File' : 'Cancel Download'}
+          </button>
+          <button class="ct-btn ct-btn-proceed-danger" id="ct-dl-allow">
+            <span class="ct-btn-icon">➜</span> ${data.fileAlreadyLanded ? 'Keep File' : 'Allow Anyway'}
+          </button>
+        </div>
+      </div>
+    `;
+
+    shadow.appendChild(container);
+    (document.body || document.documentElement).appendChild(host);
+    activeOverlay = host;
+
+    const cancelBtn = shadow.getElementById('ct-dl-cancel');
+    const closeBtn = shadow.getElementById('ct-dl-close');
+    const allowBtn = shadow.getElementById('ct-dl-allow');
+
+    const handleCancel = () => {
+      chrome.runtime.sendMessage({ type: 'CANCEL_RISKY_DOWNLOAD', downloadId: data.id });
+      closeOverlay();
+    };
+
+    if (cancelBtn) cancelBtn.addEventListener('click', handleCancel);
+    if (closeBtn) closeBtn.addEventListener('click', handleCancel);
+
+    if (allowBtn) {
+      allowBtn.addEventListener('click', () => {
+        chrome.runtime.sendMessage({ type: 'ALLOW_RISKY_DOWNLOAD', downloadId: data.id });
+        closeOverlay();
+      });
+    }
+  }
+
   document.addEventListener('click', handleDocumentClick, true);
 
   function handleDocumentClick(event) {
